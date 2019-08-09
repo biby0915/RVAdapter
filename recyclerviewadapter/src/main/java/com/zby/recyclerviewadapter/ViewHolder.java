@@ -34,24 +34,6 @@ public class ViewHolder extends RecyclerView.ViewHolder {
         this.views = new SparseArray<>();
     }
 
-    private int getClickPosition() {
-        if (getLayoutPosition() >= adapter.getHeaderLayoutCount()) {
-            return getLayoutPosition() - adapter.getHeaderLayoutCount();
-        }
-        return 0;
-    }
-
-    /**
-     * Sets the adapter of a adapter view.
-     *
-     * @param adapter The adapter;
-     * @return The ViewHolder for chaining.
-     */
-    protected ViewHolder setAdapter(BaseRvAdapter adapter) {
-        this.adapter = adapter;
-        return this;
-    }
-
     @SuppressWarnings("unchecked")
     public <T extends View> T getView(@IdRes int viewId) {
         View view = views.get(viewId);
@@ -66,6 +48,13 @@ public class ViewHolder extends RecyclerView.ViewHolder {
         TextView v = getView(viewId);
         if (v != null) {
             v.setText(text);
+        }
+    }
+
+    public void setVisiablity(@IdRes int viewId, int visibility) {
+        View v = getView(viewId);
+        if (v != null) {
+            v.setVisibility(visibility);
         }
     }
 }

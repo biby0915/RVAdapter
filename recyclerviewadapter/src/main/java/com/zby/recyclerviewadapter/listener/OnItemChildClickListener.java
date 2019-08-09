@@ -9,5 +9,5 @@ import com.zby.recyclerviewadapter.BaseRvAdapter;
  * @date 2019-08-02
  */
 public interface OnItemChildClickListener {
-    void onItemClick(BaseRvAdapter adapter, View v, int position);
+    void onItemChildClick(BaseRvAdapter adapter, View v, int position);
 }

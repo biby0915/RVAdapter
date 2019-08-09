@@ -11,6 +11,9 @@ import android.view.ViewGroup;
 import com.zby.recyclerviewadapter.listener.OnItemChildClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemLongClickListener;
+import com.zby.recyclerviewadapter.listener.OnLoadMoreListener;
+import com.zby.recyclerviewadapter.loadmore.DefaultLoadMoreView;
+import com.zby.recyclerviewadapter.loadmore.LoadMoreView;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -40,10 +43,30 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
     private static final int TYPE_HEADER = 0x1001;
     private static final int TYPE_FOOTER = 0x1002;
     private static final int TYPE_EMPTY = 0x1003;
+    private static final int TYPE_MORE = 0x1004;
+
+    //load more
+    private boolean mEnableLoadMore = false;
+    private boolean mIsLoading = false;
+    private LoadMoreView mLoadMoreView = new DefaultLoadMoreView();
+    private OnLoadMoreListener mOnLoadMoreListener;
+
+    public BaseRvAdapter(List<T> mDataList) {
+        this(0, mDataList);
+    }
 
     public BaseRvAdapter(int layoutId, List<T> dataList) {
         mLayoutResId = layoutId;
         mDataList = dataList;
+
+        registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+            @Override
+            public void onChanged() {
+                if (mLoadMoreView != null && mEnableLoadMore) {
+                    mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_DEFAULT);
+                }
+            }
+        });
     }
 
     @NonNull
@@ -60,12 +83,31 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
             case TYPE_EMPTY:
                 holder = createViewHolder(mEmptyView);
                 break;
+            case TYPE_MORE:
+                holder = createCustomHolder(parent, viewType);
+                initLoadMoreView(holder);
+                break;
             default:
                 holder = createCustomHolder(parent, viewType);
                 bindClick(holder);
 
         }
         return holder;
+    }
+
+    private void initLoadMoreView(VH holder) {
+        holder.itemView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mLoadMoreView.getLoadMoreStatus() == LoadMoreView.LOAD_STATUS_FAIL) {
+                    boolean shouldUpdate = mOnLoadMoreListener.requestLoadMore(true);
+                    if (shouldUpdate) {
+                        mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_LOADING);
+                        notifyItemChanged(getItemCount() - 1);
+                    }
+                }
+            }
+        });
     }
 
     private void bindClick(final VH holder) {
@@ -96,7 +138,7 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
                 holder.getView(entry.getKey()).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        entry.getValue().onItemClick(BaseRvAdapter.this, v, holder.getAdapterPosition() - getHeaderLayoutCount());
+                        entry.getValue().onItemChildClick(BaseRvAdapter.this, v, holder.getAdapterPosition() - getHeaderLayoutCount());
                     }
                 });
             }
@@ -111,16 +153,23 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         } else if (mDataList.isEmpty() && offset == position) {
             return TYPE_EMPTY;
         } else if (position < mDataList.size() + offset) {
-            return 1;
-        } else {
+            return getDataItemViewType(position - offset);
+        } else if (position < offset + mDataList.size() + getFooterLayoutCount()) {
             return TYPE_FOOTER;
+        } else {
+            return TYPE_MORE;
         }
+    }
+
+    protected int getDataItemViewType(int position) {
+        return super.getItemViewType(position);
     }
 
     @Override
     public void onBindViewHolder(@NonNull VH holder, int position) {
         int viewType = holder.getItemViewType();
 
+        checkLoadMore(position);
         switch (viewType) {
             case TYPE_HEADER:
                 break;
@@ -128,11 +177,34 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
                 break;
             case TYPE_EMPTY:
                 break;
+            case TYPE_MORE:
+                mLoadMoreView.convert(holder);
+                break;
             default:
-                convert(holder, getItem(position), position);
+                convert(holder, getItem(position - getHeaderLayoutCount()), position);
                 break;
         }
 
+    }
+
+    private void checkLoadMore(int position) {
+        if (getLoadMoreViewCount() == 0) {
+            return;
+        }
+
+        if (position != getItemCount() - 1) {
+            return;
+        }
+
+        if (mLoadMoreView.getLoadMoreStatus() != LoadMoreView.LOAD_STATUS_DEFAULT) {
+            return;
+        }
+
+        mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_LOADING);
+        if (!mIsLoading) {
+            mIsLoading = true;
+            mOnLoadMoreListener.requestLoadMore(false);
+        }
     }
 
     public abstract void convert(VH holder, T data, int position);
@@ -147,6 +219,11 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         if (mFooterView != null) {
             count++;
         }
+
+        if (mEnableLoadMore) {
+            count++;
+        }
+
         if (mDataList.isEmpty()) {
             if (mEmptyView != null) {
                 count++;
@@ -169,9 +246,15 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
     }
 
     private VH createCustomHolder(ViewGroup parent, int viewType) {
-        int layoutId = mLayoutResId;
-
+        int layoutId = getItemLayoutId(viewType);
         return createViewHolder(LayoutInflater.from(parent.getContext()).inflate(layoutId, parent, false));
+    }
+
+    protected int getItemLayoutId(int viewType) {
+        if (viewType == TYPE_MORE) {
+            return mLoadMoreView.getLayoutId();
+        }
+        return mLayoutResId;
     }
 
     @SuppressWarnings("unchecked")
@@ -256,6 +339,17 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         return mHeaderView == null ? 0 : 1;
     }
 
+    final public int getFooterLayoutCount() {
+        return mFooterView == null ? 0 : 1;
+    }
+
+    final public int getLoadMoreViewCount() {
+        if (!mEnableLoadMore || mOnLoadMoreListener == null || mDataList.isEmpty()) {
+            return 0;
+        }
+        return 1;
+    }
+
     public void setHeaderView(View view) {
         mHeaderView = view;
     }
@@ -266,6 +360,34 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
 
     public void setEmptyLayout(View view) {
         this.mEmptyView = view;
+    }
+
+    public void setOnLoadMoreListener(OnLoadMoreListener listener) {
+        this.mOnLoadMoreListener = listener;
+        mEnableLoadMore = true;
+    }
+
+    public void loadMoreFailed() {
+        mIsLoading = false;
+        mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_FAIL);
+        notifyItemChanged(getItemCount() - 1);
+    }
+
+    public void loadMoreComplete() {
+        mIsLoading = false;
+        mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_DEFAULT);
+        notifyItemChanged(getItemCount() - 1);
+    }
+
+    public void loadMoreEnd() {
+        mIsLoading = false;
+        mEnableLoadMore = false;
+        mLoadMoreView.setLoadMoreStatus(LoadMoreView.LOAD_STATUS_END);
+        notifyItemChanged(getItemCount() - 1);
+    }
+
+    public void setLoadMoreView(LoadMoreView loadMoreView) {
+        this.mLoadMoreView = loadMoreView;
     }
 
     public void setOnItemClickListener(OnItemClickListener listener) {
