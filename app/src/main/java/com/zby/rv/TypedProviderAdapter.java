@@ -1,6 +1,6 @@
 package com.zby.rv;
 
-import com.zby.recyclerviewadapter.BaseProviderRvAdapter;
+import com.zby.recyclerviewadapter.BaseTypedProviderRvAdapter;
 
 import java.util.List;
 
@@ -8,8 +8,8 @@ import java.util.List;
  * @author ZhuBingYang
  * @date 2019-08-06
  */
-public class ProviderAdapter extends BaseProviderRvAdapter {
-    public ProviderAdapter(List<Object> mDataList) {
+public class TypedProviderAdapter extends BaseTypedProviderRvAdapter {
+    public TypedProviderAdapter(List<Object> mDataList) {
         super(mDataList);
     }
 

@@ -10,15 +10,20 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import com.zby.recyclerviewadapter.BaseMultiProviderRvAdapter;
+import com.zby.recyclerviewadapter.BaseMultiTypedProviderRvAdapter;
 import com.zby.recyclerviewadapter.BaseProviderRvAdapter;
+import com.zby.recyclerviewadapter.BaseTypedProviderRvAdapter;
 import com.zby.recyclerviewadapter.BaseRvAdapter;
 import com.zby.recyclerviewadapter.ViewHolder;
+import com.zby.recyclerviewadapter.decoration.IInsetColorDecoration;
+import com.zby.recyclerviewadapter.decoration.InsetColorItemDecoration;
+import com.zby.recyclerviewadapter.decoration.InsetValue;
 import com.zby.recyclerviewadapter.entity.MultiItemEntity;
 import com.zby.recyclerviewadapter.listener.OnItemChildClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemLongClickListener;
 import com.zby.recyclerviewadapter.listener.OnLoadMoreListener;
+import com.zby.recyclerviewadapter.listener.OnScrollReachBottomListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -94,15 +99,10 @@ public class MainActivity extends AppCompatActivity {
 
 
         final List<MultiItemEntity> entities = new ArrayList<>();
-        entities.add(new Entity());
-        entities.add(new Entity2());
-        entities.add(new Entity());
-        entities.add(new Entity());
-        entities.add(new Entity2());
-        entities.add(new Entity2());
-        entities.add(new Entity2());
-        entities.add(new Entity());
-        entities.add(new Entity());
+        for (int i = 0; i < 20; i++) {
+            entities.add(new Entity());
+            entities.add(new Entity2());
+        }
 
         MultiAdapter multiAdapter = new MultiAdapter(entities);
         multiAdapter.setOnItemClickListener(new OnItemClickListener() {
@@ -113,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        BaseProviderRvAdapter providerRvAdapter = new BaseMultiProviderRvAdapter<MultiItemEntity, ViewHolder>(entities);
+        BaseTypedProviderRvAdapter providerRvAdapter = new BaseMultiTypedProviderRvAdapter<MultiItemEntity, ViewHolder>(entities);
         providerRvAdapter.registerProvider(new Item1Provider());
         providerRvAdapter.registerProvider(new Item2Provider());
         providerRvAdapter.setOnItemClickListener(new OnItemClickListener() {
@@ -143,6 +143,48 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
-        rv.setAdapter(providerRvAdapter);
+//        rv.setAdapter(providerRvAdapter);
+        providerRvAdapter.setScrollReachBottomOffset(3);
+        providerRvAdapter.setOnScrollReachBottomListener(new OnScrollReachBottomListener() {
+            @Override
+            public void onBottomReached() {
+                System.out.println("onBottomReached");
+            }
+        });
+
+        rv.addItemDecoration(new InsetColorItemDecoration(Color.BLACK, new IInsetColorDecoration() {
+            @Override
+            public InsetValue getInset(int position, InsetValue value) {
+                value.left = 60;
+                value.right = 20;
+                return value;
+            }
+
+            @Override
+            public int getHeight(int position) {
+                if (position == 0) {
+                    return 0;
+                }
+                return 10;
+            }
+
+            @Override
+            public int getColor(int position) {
+                return Color.MAGENTA;
+            }
+        }));
+
+
+        List pro = new ArrayList();
+        for (int i = 0; i < 10; i++) {
+            pro.add(new Entity());
+            pro.add(new Entity2());
+            pro.add(new Entity3());
+        }
+        BaseProviderRvAdapter baseProviderRvAdapter = new BaseProviderRvAdapter(pro);
+        baseProviderRvAdapter.registerProvider(Entity.class, new Item1Provider());
+        baseProviderRvAdapter.registerProvider(Entity2.class, new Item2Provider());
+        baseProviderRvAdapter.registerProvider(Entity3.class, new Item3Provider());
+        rv.setAdapter(baseProviderRvAdapter);
     }
 }

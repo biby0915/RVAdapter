@@ -8,8 +8,8 @@ import java.util.List;
  * @author ZhuBingYang
  * @date 2019-08-06
  */
-public class BaseMultiProviderRvAdapter<T extends MultiItemEntity, V extends ViewHolder> extends BaseProviderRvAdapter<T, V> {
-    public BaseMultiProviderRvAdapter(List<T> mDataList) {
+public class BaseMultiTypedProviderRvAdapter<T extends MultiItemEntity, V extends ViewHolder> extends BaseTypedProviderRvAdapter<T, V> {
+    public BaseMultiTypedProviderRvAdapter(List<T> mDataList) {
         super(mDataList);
     }
 

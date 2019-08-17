@@ -12,6 +12,7 @@ import com.zby.recyclerviewadapter.listener.OnItemChildClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemClickListener;
 import com.zby.recyclerviewadapter.listener.OnItemLongClickListener;
 import com.zby.recyclerviewadapter.listener.OnLoadMoreListener;
+import com.zby.recyclerviewadapter.listener.OnScrollReachBottomListener;
 import com.zby.recyclerviewadapter.loadmore.DefaultLoadMoreView;
 import com.zby.recyclerviewadapter.loadmore.LoadMoreView;
 
@@ -20,6 +21,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,10 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
     private OnItemLongClickListener mOnItemLongClickListener;
     private Map<Integer, OnItemChildClickListener> mOnItemChildClickListeners;
 
+    private OnScrollReachBottomListener mOnScrollReachBottomListener;
+    private int mScrollReachBottomOffset = 0;
+    private boolean mReachShouldNotify = true;
+
     private View mHeaderView;
     private View mFooterView;
     private View mEmptyView;
@@ -51,13 +58,17 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
     private LoadMoreView mLoadMoreView = new DefaultLoadMoreView();
     private OnLoadMoreListener mOnLoadMoreListener;
 
+    public BaseRvAdapter() {
+        this(0, null);
+    }
+
     public BaseRvAdapter(List<T> mDataList) {
         this(0, mDataList);
     }
 
     public BaseRvAdapter(int layoutId, List<T> dataList) {
         mLayoutResId = layoutId;
-        mDataList = dataList;
+        mDataList = dataList == null ? new ArrayList<T>() : dataList;
 
         registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
             @Override
@@ -170,6 +181,7 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         int viewType = holder.getItemViewType();
 
         checkLoadMore(position);
+        checkReachBottom(position);
         switch (viewType) {
             case TYPE_HEADER:
                 break;
@@ -185,6 +197,20 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
                 break;
         }
 
+    }
+
+    private void checkReachBottom(int position) {
+        if (mOnScrollReachBottomListener == null) {
+            return;
+        }
+        if (position >= getItemCount() - 1 - mScrollReachBottomOffset) {
+            if (mReachShouldNotify) {
+                mOnScrollReachBottomListener.onBottomReached();
+            }
+            mReachShouldNotify = false;
+        } else {
+            mReachShouldNotify = true;
+        }
     }
 
     private void checkLoadMore(int position) {
@@ -266,7 +292,6 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
             temp = temp.getSuperclass();
         }
         VH k;
-        // 泛型擦除会导致z为null
         if (z == null) {
             k = (VH) new ViewHolder(view);
         } else {
@@ -275,18 +300,10 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         return k != null ? k : (VH) new ViewHolder(view);
     }
 
-    /**
-     * try to create Generic K instance
-     *
-     * @param z
-     * @param view
-     * @return
-     */
     @SuppressWarnings("unchecked")
     private VH createGenericKInstance(Class z, View view) {
         try {
             Constructor constructor;
-            // inner and unstatic class
             if (z.isMemberClass() && !Modifier.isStatic(z.getModifiers())) {
                 constructor = z.getDeclaredConstructor(getClass(), View.class);
                 constructor.setAccessible(true);
@@ -308,12 +325,6 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         return null;
     }
 
-    /**
-     * get generic parameter K
-     *
-     * @param z
-     * @return
-     */
     private Class getInstancedGenericKClass(Class z) {
         Type type = z.getGenericSuperclass();
         if (type instanceof ParameterizedType) {
@@ -333,6 +344,21 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
             }
         }
         return null;
+    }
+
+    public void setData(List<T> data) {
+        mDataList = data == null ? new ArrayList<T>() : data;
+        notifyDataSetChanged();
+    }
+
+    public void addData(T data) {
+        mDataList.add(data);
+        notifyItemInserted(getHeaderLayoutCount() + mDataList.size() - 1);
+    }
+
+    public void addData(Collection<T> data) {
+        mDataList.addAll(data);
+        notifyItemRangeInserted(getHeaderLayoutCount() + mDataList.size() - data.size(), mDataList.size() + getHeaderLayoutCount() - 1);
     }
 
     final public int getHeaderLayoutCount() {
@@ -405,5 +431,21 @@ public abstract class BaseRvAdapter<T, VH extends ViewHolder> extends RecyclerVi
         }
 
         mOnItemChildClickListeners.put(viewId, listener);
+    }
+
+    public OnScrollReachBottomListener getOnScrollFetchBottomListener() {
+        return mOnScrollReachBottomListener;
+    }
+
+    public void setOnScrollReachBottomListener(OnScrollReachBottomListener listener) {
+        this.mOnScrollReachBottomListener = listener;
+    }
+
+    public int getScrollReachBottomOffset() {
+        return mScrollReachBottomOffset;
+    }
+
+    public void setScrollReachBottomOffset(int offset) {
+        this.mScrollReachBottomOffset = offset;
     }
 }
